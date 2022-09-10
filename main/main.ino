@@ -41,7 +41,7 @@ ESC_POS_Printer printer(&uprinter);
 IPAddress ip(192, 168, 1, 177); // IP alat ini.
 EthernetClient client;
 HttpClient http(client);
-const byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED }; //Setting MAC Address Alat
+const byte mac[] = {0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED }; //Setting MAC Address Alat
 const char server[] = "192.168.1.88"; // HOST Server-nya
 const char path_base_data[] = "/pintum_b.php"; // alamat untuk ambil data layanan
 const char path_last_id[] = "/counter_b.php"; // alamat untuk ambil data barcode id terakhir dan POST data layanan ke server lokal
@@ -69,8 +69,9 @@ String harga_jenis_layanan_2 = "";
 String harga_jenis_layanan_3 = "";
 String harga_jenis_layanan_4 = "";
 unsigned long id_barcode;
-char raw_data[12]; // kepemilikan fungsi convertToAscii, HARUS dideklarasikan secara GLOBAL. ini untuk barcode
-char converted_to_ascii[12]; // ini untuk barcode
+char raw_data[BARCODE_LENGTH]; // kepemilikan fungsi convertToAscii, HARUS dideklarasikan secara GLOBAL. ini untuk barcode
+char converted_to_ascii[BARCODE_LENGTH]; // ini untuk barcode
+String str_barcode="";
 
 // pendeklarasian nama fungsi di awal --> sesuai dengan standar bahasa C
 void sendDataToServer(String* jenis_layanan, String* harga);
@@ -89,13 +90,12 @@ void statusLedOn();
 /* SETUP */
 void setup() {
   // hidupakan wdt
-  wdt_enable(WDTO_8S);
+  //wdt_enable(WDTO_8S);
 
-  Serial.begin(115200);
+  Serial.begin(9600);
   pinMode(PIN_PORTAL_TRIGGER, OUTPUT);
   pinMode(PIN_LED, OUTPUT);
   digitalWrite(PIN_PORTAL_TRIGGER, HIGH); //portal  active low
-
   DPRINTLN("MULAI");
 
   // inisiasi printer
@@ -104,34 +104,53 @@ void setup() {
   if (myusb.Init()) {
     DPRINTLN(F("USB host failed to initialize"));
     while (1) delay(1);
+  } else {
+    DPRINTLN("USB HOST berhasil");
   }
   statusLedOff();
+
   // Inisiasi ethernet W5500
   Ethernet.init(CS_ETHERNET);
   // Static IP
-  Ethernet.begin(mac, ip);
-  DPRINTLN();
-
-
+  Ethernet.begin(mac, ip); // ISI IP
+  Serial.println(Ethernet.localIP());
   // buat koneksi ke database sampai berhasil
-  while (http.get(server, path_base_data) != 0)
-  {
-    http.get(server, path_base_data); // get data from database
-    delay(5000);
-  }
+  //  while (http.get(server, path_base_data) != 0)
+  //  {
+  //    Serial.println("Data request");
+  //    int error = http.get(server, path_base_data); // get data from database
+  //    Serial.println(error);
+  ////    delay(5000);
+  //  }
 
+  // data jenis layanan tombol
+  int error = http.get(server, path_base_data);
+  DPRINTLN(error);
   // Ambil hanya body html-nya saja
-  http.skipResponseHeaders();
+  error =  http.skipResponseHeaders();
+  DPRINTLN(error);
 
   // parsing data dari database
   parsingData(base_data_from_database);
+  //  int i = 0;
+  //  while (http.available() || http.connected())
+  //  {
+  //    char c = http.read();
+  //    if (c != '#') {
+  //      base_data_from_database[i] += c;
+  //    } else if (c == '#') {
+  //      i++;
+  //    }
+  //    DPRINT(c);
+  //  }
 
   // simpan data yang telah di-parsing pada variabel
   jenis_layanan_1 = base_data_from_database[0];
   jenis_layanan_2 = base_data_from_database[2];
   jenis_layanan_3 = base_data_from_database[4];
   jenis_layanan_4 = base_data_from_database[6];
-
+  DPRINT("Debug data jenis layanan: ");
+  DPRINTLN(jenis_layanan_1);
   harga_jenis_layanan_1 = base_data_from_database[1];
   harga_jenis_layanan_2 = base_data_from_database[3];
   harga_jenis_layanan_3 = base_data_from_database[5];
@@ -140,11 +159,17 @@ void setup() {
   http.stop(); // HARUS DIISI
   delay(1000); // HARUS DIISI
 
+
+
   // mendapatkan last id barcode
-  http.get(server, path_last_id);
-  http.skipResponseHeaders();
+  error = http.get(server, path_last_id);
+  DPRINTLN(error);
+  error = http.skipResponseHeaders();
+  DPRINTLN(error);
 
   id_barcode = http.readString().toInt();
+
+  // debug
 
   if (id_barcode == 0)
     id_barcode = 1; // jika tidak ada nilai id barcode di database akhir
@@ -185,35 +210,49 @@ void loop() {
       }
     case 2:
       {
-        sendDataToServer(ptr_selected_jenis_layanan, ptr_selected_harga);
+        convertToAscii(id_barcode, BARCODE_LENGTH);
+        // filter the barcode
+        for (int i = 0; i < BARCODE_LENGTH; i++)
+        {
+            str_barcode += converted_to_ascii[i];
+        }
+        DPRINT(str_barcode);
+        DPRINTLN();
+        state = 3;
         break;
       }
     case 3:
       {
+        sendDataToServer(ptr_selected_jenis_layanan, ptr_selected_harga);
+        break;
+      }
+    case 4:
+      {
         printerEpson(id_barcode, ptr_selected_jenis_layanan, ptr_selected_harga);
-        state = 4;
+        state = 5;
 
         // debug BARCODE
         /******************************/
-        for (int i = 0; i < 13; i++)
+        DPRINTLN("Print Barcode");
+        for (int i = 0; i < BARCODE_LENGTH; i++)
           DPRINT(converted_to_ascii[i]);
         DPRINTLN();
         /******************************/
         break;
       }
-    case 4:
+    case 5:
       {
         openPortal();
-        state = 5;
+        state = 6;
         break;
       }
-    case 5:
+    case 6:
       {
         clearValue();
         state = 1;
         break;
       }
-    case 6:
+    case 7:
       {
         // server mati atau ethernet bermasalah
         statusLedOff();
@@ -232,18 +271,12 @@ void sendDataToServer(String* jenis_layanan, String* harga)
   if (client.connect(server, 80)) {
     DPRINTLN("connected");
     statusLedOn(); // hidupkan status LED --> koneksi aman
-    id_barcode ++; // incremetn for barcode
-    // convert to ASCII for Barcode
-    convertToAscii(id_barcode, BARCODE_LENGTH);
 
-    // DEBUG 
-    // coba print converted_array_
-    
-     // Make a HTTP request:
+    // Make a HTTP request:
     client.print(F("GET /counter_b.php?jenis_layanan="));     //alamat server post data nya
     client.print(*jenis_layanan);
-    client.print(F("&id_barcode=0"));// add 0 --> menyesuaikan dengan pintu keluar scanner
-    client.print(String(converted_to_ascii)); // id barcode dikonversi menjadi ASCII string. // CEK DULU
+    client.print(F("&id_barcode="));// add 0 --> menyesuaikan dengan scanner pada pintu keluar
+    client.print(str_barcode); // id barcode dikonversi menjadi ASCII string. // CEK DULU
     client.print(F("&kode_pintu="));
     client.print(kode_jenis_layanan);
     client.print(F(" "));      //SPACE BEFORE HTTP/1.1
@@ -253,7 +286,7 @@ void sendDataToServer(String* jenis_layanan, String* harga)
     client.println(F("Connection: close"));
     client.println();
 
-    state = 3; // pindah ke state 3
+    state = 4; // pindah ke state 4
 
     // debug
     DPRINT(F("ID "));
@@ -266,7 +299,7 @@ void sendDataToServer(String* jenis_layanan, String* harga)
 
   } else {
     // if you didn't get a connection to the server:
-    state = 6;
+    state = 7;
     DPRINTLN("connection failed");
   }
 }
@@ -279,6 +312,7 @@ void readButtons()
     ptr_selected_jenis_layanan = &jenis_layanan_1 ;
     ptr_selected_harga = &harga_jenis_layanan_1 ;
     kode_jenis_layanan = "AA";
+    id_barcode ++; // increment for barcode
     state = 2; // pindah ke state 2
   }
 
@@ -287,6 +321,7 @@ void readButtons()
     ptr_selected_jenis_layanan = &jenis_layanan_2;
     ptr_selected_harga = &harga_jenis_layanan_2 ;
     kode_jenis_layanan = "BB";
+    id_barcode ++; // increment for barcode
     state = 2;
   }
 
@@ -295,6 +330,7 @@ void readButtons()
     ptr_selected_jenis_layanan = &jenis_layanan_3;
     ptr_selected_harga = &harga_jenis_layanan_3;
     kode_jenis_layanan = "CC";
+    id_barcode ++; // increment for barcode
     state = 2;
   }
 
@@ -303,6 +339,7 @@ void readButtons()
     ptr_selected_jenis_layanan = &jenis_layanan_4;
     ptr_selected_harga = &harga_jenis_layanan_4;
     kode_jenis_layanan = "DD";
+    id_barcode ++; // increment for barcode
     state = 2;
   }
 }
@@ -313,6 +350,7 @@ void clearValue()
   ptr_selected_jenis_layanan = NULL;
   ptr_selected_harga = NULL;
   kode_jenis_layanan = "";
+  str_barcode = "";
   memset(raw_data, 0, sizeof(raw_data));
   memset(converted_to_ascii, 0, sizeof(converted_to_ascii));
 }
@@ -345,6 +383,8 @@ void parsingData(String arr_base_data[]) {
 
 void printerEpson(unsigned long id_barcode, String* jenis_layanan, String* harga)
 {
+  // debug
+  printBarcode(converted_to_ascii, BARCODE_LENGTH); // Barcode : UPCA
   // Make sure USB printer found and ready
   if (uprinter.isReady()) {
     printer.begin();
@@ -390,13 +430,7 @@ void autoCutter()
 /* Print Barcode */
 void printBarcode(char data_id[], int len_id)
 {
-  char id_barcode[len_id];
-  // menyimpan data ke array lokal (id_barcode)
-  for (int i = 0; i < len_id; i++)
-  {
-    id_barcode[i] = data_id[i];
-  }
-
+ 
   printer.reset();
 
   // align: center
@@ -429,27 +463,33 @@ void printBarcode(char data_id[], int len_id)
   //pre-cetak barcode
   uprinter.write(29);
   uprinter.write(107);
-  uprinter.write(65); // tipe barcode: UPCA
-  uprinter.write(12); // panjang angka barcode
+  uprinter.write(67); // tipe barcode: UPCA / EAN
+  uprinter.write(BARCODE_LENGTH); // panjang angka barcode
 
   // cetak barcode
-  for (int i = 0 ; i < 12; i++)
-    uprinter.write(id_barcode[i]);
+  for (int i = 0 ; i < len_id ; i++) {
+    uprinter.write(converted_to_ascii[i]);
+  }
+  delay(100);
+
 }
 
 /* Convert decimal to ASCII */
 // data konversi dari desimal ke ASCII
 void convertToAscii(unsigned long number, int len_number)
 {
+  // convert to ASCII for Barcode
   int index = 0;
   while (number > 0) {
     raw_data[index++] = char((number % 10) + 48);
     number = number / 10;
-  }
 
-// reverse array from end to front
+  }
+  DPRINT("Barcode sebelum di-reverse: ");
+  DPRINTLN(raw_data);
+  // reverse array from end to front
   int y = 0;
-  for (int i = len_number - 1 ; i >= 0; i--)
+  for (int i = BARCODE_LENGTH - 1 ; i >= 0; i--)
   {
     if (raw_data[i] == NULL)
       converted_to_ascii[y] = '0';
@@ -457,6 +497,8 @@ void convertToAscii(unsigned long number, int len_number)
       converted_to_ascii[y] = raw_data[i];
     y++;
   }
+
+
 }
 
 /* LED Status properties */
