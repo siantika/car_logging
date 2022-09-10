@@ -16,7 +16,7 @@
 #define DEBOUNCE_TIME 100 // 50 ms
 #define TOTAL_INDEX 8 // jumlah data " jenis_layanan " dari database
 #define DELAY_TIME_FOR_PORTAL_SIGNAL 500 //ms
-#define BARCODE_LENGTH 13 // EAN 13
+#define BARCODE_LENGTH 12 // EAN 12/13
 
 // Debug console
 #define DEBUG // uncomment untuk menampilakan serial debug.
