@@ -360,7 +360,6 @@ void parsingData(String arr_base_data[]) {
 void printerEpson(unsigned long id_barcode, String* jenis_layanan, String* harga)
 {
   // debug
-  printBarcode(converted_to_ascii, BARCODE_LENGTH); // Barcode : UPCA
   // Make sure USB printer found and ready
   if (uprinter.isReady()) {
     printer.begin();
@@ -377,7 +376,7 @@ void printerEpson(unsigned long id_barcode, String* jenis_layanan, String* harga
     printer.print("BALI DRIVE TRHU CARWASH\n");
     printer.normal();
     printer.print("Jl. Mahendradata Selatan No.19 Denpasar, Bali\n\n");
-    printBarcode(converted_to_ascii, BARCODE_LENGTH); // Barcode : UPCA
+    printBarcode(converted_to_ascii, BARCODE_LENGTH); // Barcode : EAN
     printer.print("\n\n");
 
     printer.normal();
@@ -439,7 +438,7 @@ void printBarcode(char data_id[], int len_id)
   //pre-cetak barcode
   uprinter.write(29);
   uprinter.write(107);
-  uprinter.write(67); // tipe barcode: EAN
+  uprinter.write(69); // tipe barcode: code39
   uprinter.write(BARCODE_LENGTH); // panjang angka barcode
 
   // cetak barcode
