@@ -9,7 +9,7 @@
 #define PIN_PORTAL_TRIGGER 8 
 
 // ethernet
-#define CS_ETHERNET 53 // mega 2560
+#define CS_ETHERNET 6 // Should be 6, because pin 10 is used by arduino shield
 
 // LED status
 #define PIN_LED 11
